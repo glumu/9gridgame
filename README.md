@@ -2,7 +2,7 @@
 
 Demo: [http://glumu.github.io/9gridgame/](http://glumu.github.io/9gridgame/)
 
-主要用于前端开发规范的培训。
+本小例子用于前端开发规范的培训。
 
 1. class命名
 
