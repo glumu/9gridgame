@@ -232,6 +232,10 @@ h1{
 
         /*
          * 电脑下棋
+         * 先进攻看看是否有可赢的，如果没有就选择防守。
+         * 进攻是遍历每一个空位看是否可赢，
+         * 防守是遍历每一个空位对方是否可赢。
+         * w是权重，自己可赢是1000，对方可赢是-1000，平手是0。
          */
         grid9Game.prototype._ai = function() {
             var _this = this,
@@ -241,7 +245,7 @@ h1{
             var defend = function() {
                 var bestx, 
                     besty, 
-                    bestw = 0, 
+                    bestw = 0, // 权重
                     result;
 
                 for (var x = 0; x < 3; x++) {
@@ -279,7 +283,7 @@ h1{
             var attack = function() {
                 var bestx, 
                     besty, 
-                    bestw = 0, 
+                    bestw = 0, // 权重
                     result;
 
                 for (var x = 0; x < 3; x++) {
