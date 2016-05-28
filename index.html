@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=edge,Chrome=1">
 <meta name="renderer" content="webkit">
-<title>九宫格小游戏</title>
+<title>井字棋小游戏</title>
 <style type="text/css">
 body{
     font:14px/1.5 "microsoft yahei","宋体",tahoma,arial,"\5b8b\4f53";
@@ -89,7 +89,7 @@ h1{
 </head>
 <body>
 <header>
-    <h1>九宫格小游戏</h1>
+    <h1>井字棋小游戏</h1>
 </header>
 <section id="grid_main">
     <div class="grid-item empty" data-x="0" data-y="0" data-idx="0"></div>
@@ -103,8 +103,8 @@ h1{
     <div class="grid-item empty" data-x="2" data-y="2" data-idx="8"></div>
 </section>
 <section id="grid_ctrl">
-    <input type="radio" name="mode" id="mode_friend" value="1" checked="checked"><label for="mode_friend">对战</label>&nbsp;&nbsp;
-    <input type="radio" name="mode" id="mode_ai" value="2"><label for="mode_ai">人机</label>
+    <input type="radio" name="mode" id="mode_friend" value="1"><label for="mode_friend">对战</label>&nbsp;&nbsp;
+    <input type="radio" name="mode" id="mode_ai" value="2" checked="checked"><label for="mode_ai">人机</label>
     <br /><br />
     <input class="btn btn-middle btn-default J-Op" type="button" value="开始游戏" />
 </section>
@@ -145,9 +145,9 @@ h1{
             this.timerDom = $('<span></span>');
             this.wrap.prepend(this.timerDom);
 
-            // 值存储数组
-            this.quanArr = [];
-            this.chaArr = [];
+            // 数据矩阵(0:空, -1:圈, 1:叉)
+            this.gridData = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
         };
 
         // 游戏计时
@@ -161,123 +161,185 @@ h1{
             }, 1000);
         };
 
-        // 事件绑定
+        // 下棋事件绑定
         grid9Game.prototype._bindEvent = function() {
             var _self = this;
+
             _self.items.click(function(event) {
-                _self.step++;
 
                 if (_self.playing == false || $(this).hasClass('active')) {
                     return;
                 }
 
+                _self.step++;
+
                 $(this).removeClass('empty').addClass('active');
 
+                var x = parseInt($(this).data('x')),
+                    y = parseInt($(this).data('y'));
+                // 判断是哪方下的，添加样式，更新数据
                 if (_self.step % 2 == 0) {
                     $(this).text('X').addClass('cha');
-                    _self.chaArr.push({x:$(this).data('x'), y:$(this).data('y'), idx:$(this).data('idx')});
-                    _self._check('cha');
+                    _self.gridData[x][y] = 1;
                 } else {
                     $(this).text('O').addClass('quan');
-                    _self.quanArr.push({x:$(this).data('x'), y:$(this).data('y'), idx:$(this).data('idx')});
-                    _self._check('quan');
+                    _self.gridData[x][y] = -1;
+                }
 
-                    // 如果是人机对战模型执行
-                    if (_self.mode == grid9Game.MODE_AI) {
-                        _self._ai();
-                        _self.step++;
+                // 判断胜利
+                if (_self._check(x, y)) {
+                    return;
+                }
+
+                // 如果是人机对战模型执行
+                if (_self.mode == grid9Game.MODE_AI) {
+                    var go  = _self._ai();
+
+                    _self.gridData[go.x][go.y] = 1;
+                    _self.step++;
+                    _self._renderAi(go.x, go.y);
+
+                    // 判断胜利
+                    if (_self._check(go.x, go.y)) {
+                        return;
                     }
                 }
 
-                if (_self.step == 9) {
+                // 走完步数
+                if (_self.step >= 9) {
                     _self._over();
                 }
 
             });
         };
 
-        // ai计算部分, 未完成。。。。~ ~!
-        grid9Game.prototype._ai = function() {
+        /*
+         * 判断是否胜利
+         *
+         * @param   x, y 坐标
+         * @return  true | false
+         */
+        grid9Game.prototype._check = function(x, y) {
             var _this = this;
-            var aiArr = [], 
-                emptyArr = [];
-            $.each(_this.wrap.find('.cha'), function(idx, element) {
-                aiArr.push({x: $(element).data('x'), y: $(element).data('y'), idx: $(element).data('idx')})
-            });
+            var result = _this._win(x, y);
+            if (result != false) {
+                _this._renderWinner(result);
+                _this._over();
+                return true;
+            }
+            return false;
+        }
 
-            $.each(_this.wrap.find('.empty'), function(idx, element) {
-                emptyArr.push({x: $(element).data('x'), y: $(element).data('y'), idx: $(element).data('idx')})
-            });
+        /*
+         * 电脑下棋
+         */
+        grid9Game.prototype._ai = function() {
+            var _this = this,
+                d = _this.gridData;
 
-            console.log(aiArr, emptyArr);
+            // 防守
+            var defend = function() {
+                var bestx, 
+                    besty, 
+                    bestw = 0, 
+                    result;
+
+                for (var x = 0; x < 3; x++) {
+                    for (var y = 0; y < 3; y++) {
+                        if (d[x][y] == 0) {
+                            d[x][y] = -1;
+                            _this.step++;
+                            result = _this._win(x, y);
+                            if (result != false) {
+                                _this.step--;
+                                d[x][y] = 0;
+                                return {'x': x, 'y': y, 'w': -1000};
+                            } else if (_this.step >= 9) {
+                                _this.step--;
+                                d[x][y] = 0;
+                                return {'x': x, 'y': y, 'w': 0};
+                            } else {
+                                var w = attack().w;
+                                _this.step--;
+                                d[x][y] = 0;
+                                if (bestx == null || w <= bestw) {
+                                    bestx = x;
+                                    besty = y;
+                                    bestw = w;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return {'x': bestx, 'y': besty, 'w': bestw};
+            };
+
+            // 进攻
+            var attack = function() {
+                var bestx, 
+                    besty, 
+                    bestw = 0, 
+                    result;
+
+                for (var x = 0; x < 3; x++) {
+                    for (var y = 0; y < 3; y++) {
+                        if (d[x][y] == 0) {
+                            d[x][y] = 1;
+                            _this.step++;
+                            result = _this._win(x, y);
+                            if (result != false) {
+                                _this.step--;
+                                d[x][y] = 0;
+                                return {'x': x, 'y': y, 'w': 1000};
+                            } else if (_this.step >= 9) {
+                                _this.step--;
+                                d[x][y] = 0;
+                                return {'x': x, 'y': y, 'w': 0};
+                            } else {
+                                var w = defend().w;
+                                _this.step--;
+                                d[x][y] = 0;
+                                if (bestx == null || w >= bestw) {
+                                    bestx = x;
+                                    besty = y;
+                                    bestw = w;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return {'x': bestx, 'y': besty, 'w': bestw};
+            };
+
+            var go = attack();
+            return go;
+
         };
 
         /**
          * 核心胜负计算
-         * @param   side    哪一方(cha || quan)
+         * 三个同一方的棋子连在一起相加的绝对值必为3
+         *
+         * @param   x, y 坐标
+         * @return  false | array 赢了的话返回赢的几个格子的index
          */
-        grid9Game.prototype._check = function(side) {
-            var _this = this;
-            var count, i, j, k, len, 
-                tmpArr, //临时数组
-                idxArr, //存储元素索引值的数组
-                rowSum, //元素x求和结果
-                colSum, //元素y求和结果
-                cross, //是否穿过中间元素
-                arr = side == 'cha' ? this.chaArr : this.quanArr;
-            if (arr.length < 3) {
-                return;
+        grid9Game.prototype._win = function(x, y) {
+            var d = this.gridData;
+            if (Math.abs(d[x][0] + d[x][1] + d[x][2]) == 3) {
+                return [x * 3, x * 3 + 1, x * 3 + 2];
             }
-
-            len = arr.length;
-
-            // 取数组任意不同的3个值为一组合，
-            for (i=0; i<len; i++) {
-                tmpArr = [arr[i]];
-
-                for (j=0; j<len; j++) {
-                    if (j > i) {
-                        tmpArr.push(arr[j]);
-
-                        for (k=0; k<len; k++) {
-                            if (k > i && k > j) {
-                                tmpArr.push(arr[k]);
-                            }
-                            if (tmpArr.length == 3) {
-                                rowSum = colSum = 0;
-                                idxArr = [];
-                                cross = false; //是否要过中间元素
-
-                                // 计算是否取胜
-                                $.each(tmpArr, function(idx, data) {
-                                    if (data.x == 1 && data.y == 1) {
-                                        cross = true;
-                                    }
-
-                                    rowSum += data.x;
-                                    colSum += data.y;
-                                    idxArr.push(data.idx);
-                                });
-                                if (cross == false) {
-                                    if (rowSum % 3 == 0 && colSum % 3 == 0 && Math.abs(rowSum - colSum) == 3) {
-                                        _this._renderWinner(idxArr);
-                                        _this._over();
-                                        return true;
-                                    }
-                                } else if (rowSum == 3 && colSum == 3) {
-                                    _this._renderWinner(idxArr);
-                                    _this._over();
-                                    return true;
-                                }
-
-                                tmpArr.pop();
-                            }
-                        }
-                    }
-                    tmpArr = tmpArr.slice(0, 1);
-                }
-            } 
-            return false;           
+            if (Math.abs(d[0][y] + d[1][y] + d[2][y]) == 3) {
+                return [y, y + 3, y + 6];
+            }
+            if (Math.abs(d[0][0] + d[1][1] + d[2][2]) == 3) {
+                return [0, 4, 8];
+            }
+            if (Math.abs(d[2][0] + d[1][1] + d[0][2]) == 3) {
+                return [2, 4, 6];
+            }
+            return false;
         };
 
         // 渲染胜利方
@@ -286,6 +348,14 @@ h1{
             $.each(idxArr, function(idx, val) {
                 $(_this.items[val]).addClass('win');
             });
+        };
+
+        // 渲染电脑走的点
+        grid9Game.prototype._renderAi = function(x, y) {
+            var _this = this,
+                idx = x * 3 + y;
+            console.log(idx);
+            $(_this.items[idx]).removeClass('empty').addClass('active cha').text('X');
         };
 
         // 游戏结束
@@ -297,8 +367,7 @@ h1{
         grid9Game.prototype.reset = function() {
             this.step = 0;
             this.playing = false;
-            this.quanArr = [];
-            this.chaArr = [];
+            this.gridData = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
             this.timerDom.text('');
             this.items.empty().removeClass('active win cha quan').addClass('empty');
             clearInterval(this.timer);
@@ -336,7 +405,7 @@ $(function($) {
     game = new grid9Game({
         wrap: $('#grid_main'),
         items: $('#grid_main .grid-item'),
-        mode: grid9Game.MODE_FRIEND
+        mode: grid9Game.MODE_AI
     });
 
 
@@ -353,10 +422,6 @@ $(function($) {
         var _this = $(this);
         if (_this.hasClass('btn-default')){
             _this.removeClass('btn-default').addClass('btn-orange').val('重置游戏');
-            if (game.mode ==  grid9Game.MODE_AI) {
-                alert('人机模式处于开发中...');
-                return;
-            }
             game.start();
         } else {
             _this.removeClass('btn-orange').addClass('btn-default').val('开始游戏');

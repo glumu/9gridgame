@@ -1,4 +1,4 @@
-# 九宫格小游戏
+# 井字棋小游戏
 
 Demo: [http://glumu.github.io/9gridgame/](http://glumu.github.io/9gridgame/)
 
